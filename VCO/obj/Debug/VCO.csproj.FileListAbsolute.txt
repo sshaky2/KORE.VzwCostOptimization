@@ -1,0 +1,13 @@
+c:\users\sshakya\documents\visual studio 2015\Projects\VCO\VCO\bin\Debug\VCO.exe.config
+c:\users\sshakya\documents\visual studio 2015\Projects\VCO\VCO\bin\Debug\VCO.exe
+c:\users\sshakya\documents\visual studio 2015\Projects\VCO\VCO\bin\Debug\VCO.pdb
+c:\users\sshakya\documents\visual studio 2015\Projects\VCO\VCO\obj\Debug\VCO.csprojResolveAssemblyReference.cache
+c:\users\sshakya\documents\visual studio 2015\Projects\VCO\VCO\obj\Debug\VCO.csproj.ResolveComReference.cache
+c:\users\sshakya\documents\visual studio 2015\Projects\VCO\VCO\obj\Debug\VCO.CostOptimization.resources
+c:\users\sshakya\documents\visual studio 2015\Projects\VCO\VCO\obj\Debug\VCO.Properties.Resources.resources
+c:\users\sshakya\documents\visual studio 2015\Projects\VCO\VCO\obj\Debug\VCO.csproj.GenerateResource.Cache
+c:\users\sshakya\documents\visual studio 2015\Projects\VCO\VCO\obj\Debug\VCO.exe
+c:\users\sshakya\documents\visual studio 2015\Projects\VCO\VCO\obj\Debug\VCO.pdb
+c:\users\sshakya\documents\visual studio 2015\Projects\VCO\VCO\bin\Debug\DocumentFormat.OpenXml.dll
+c:\users\sshakya\documents\visual studio 2015\Projects\VCO\VCO\bin\Debug\WindowsBase.dll
+c:\users\sshakya\documents\visual studio 2015\Projects\VCO\VCO\bin\Debug\DocumentFormat.OpenXml.xml
