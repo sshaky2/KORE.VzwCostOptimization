@@ -12,5 +12,6 @@ namespace VCO
         public double Usage { get; set; }
         public int Plan { get; set; }
         public bool PlanAssigned { get; set; }
+        public double Cost { get; set; }
     }
 }

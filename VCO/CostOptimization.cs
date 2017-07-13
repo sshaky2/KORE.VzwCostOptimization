@@ -21,7 +21,7 @@ namespace VCO
         public List<Data> SimAndUsage { get; set; }
         private static readonly Regex ColumnNameRegex = new Regex("[A-Za-z]+");
 
-        private List<int> planList = new List<int> {10240,5120,1024,500,50,25,3};
+        private List<int> planList = new List<int> {10240,5120,1024,500,250,3};
         public CostOptimization()
         {
             InitializeComponent();
@@ -87,34 +87,52 @@ namespace VCO
 
         private void ApplyPlans()
         {
-            double totalPoolCommitment = 0;
+            double poolCommitment = 0;
             double accumulatedUsage = 0;
             var index = -1;
             var planIndex = 0;
+            bool planTransition = false;
+            double totalCost = 0;
             for (var i = 0; i < SimAndUsage.Count; i++)
             {
+                while(planTransition && planList[planIndex] >= SimAndUsage[i].Usage)
+                {
+                    planIndex++;
+                    poolCommitment = 0;
+                    accumulatedUsage = 0;
+                }
+                planTransition = false;
                 if (planIndex == planList.Count - 1)
                 {
-                    accumulatedUsage += SimAndUsage[i].Usage;
-                    totalPoolCommitment += planList[planList.Count - 1];
-                    SimAndUsage[i].Plan = planList[planList.Count - 1];
-                    SimAndUsage[i].PlanAssigned = true;
+                    AssignPlan(ref poolCommitment, ref accumulatedUsage, planList.Count - 1, ref totalCost, i);
                 }
                 else
                 {
-                    accumulatedUsage += SimAndUsage[i].Usage;
-                    totalPoolCommitment += planList[planIndex];
-                    SimAndUsage[i].Plan = planList[planIndex];
-                    SimAndUsage[i].PlanAssigned = true;
-                    if (totalPoolCommitment > accumulatedUsage)
+                    AssignPlan(ref poolCommitment, ref accumulatedUsage, planIndex, ref totalCost, i);
+                    if (poolCommitment > accumulatedUsage * PlanInformation.GetInfoBySize(planList[planIndex]).Buffer)
                     {
                         planIndex++;
+                        poolCommitment = 0;
+                        accumulatedUsage = 0;
+                        planTransition = true;
                     }
                 }
-                
+            }
+            if (accumulatedUsage > poolCommitment)
+            {
+                totalCost += (accumulatedUsage - poolCommitment) * PlanInformation.GetInfoBySize(3).OverageCost;
             }
         }
 
+        private void AssignPlan(ref double poolCommitment, ref double accumulatedUsage, int planIndex, ref double totalCost, int i)
+        {
+            accumulatedUsage += SimAndUsage[i].Usage;
+            poolCommitment += planList[planIndex];
+            SimAndUsage[i].Plan = planList[planIndex];
+            SimAndUsage[i].Cost = PlanInformation.GetInfoBySize(planList[planIndex]).Cost;
+            SimAndUsage[i].PlanAssigned = true;
+            totalCost += SimAndUsage[i].Cost;
+        }
 
         private void fileToolStripMenuItem_Click(object sender, EventArgs e)
         {
