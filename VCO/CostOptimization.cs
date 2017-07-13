@@ -82,10 +82,10 @@ namespace VCO
                 }
             }
             Cursor.Current = Cursors.Default;
-            ApplyPlans();
+            CalculatePlans();
         }
 
-        private void ApplyPlans()
+        private void CalculatePlans()
         {
             double poolCommitment = 0;
             double accumulatedUsage = 0;
@@ -132,6 +132,27 @@ namespace VCO
             SimAndUsage[i].Cost = PlanInformation.GetInfoBySize(planList[planIndex]).Cost;
             SimAndUsage[i].PlanAssigned = true;
             totalCost += SimAndUsage[i].Cost;
+        }
+
+        {
+            List<T> list = source.ToList();
+            int length = list.Count;
+            int max = (int)Math.Pow(2, list.Count);
+
+            for (int count = 0; count < max; count++)
+            {
+                List<T> subset = new List<T>();
+                uint rs = 0;
+                while (rs < length)
+                {
+                    if ((count & (1u << (int)rs)) > 0)
+                    {
+                        subset.Add(list[(int)rs]);
+                    }
+                    rs++;
+                }
+                yield return subset;
+            }
         }
 
         private void fileToolStripMenuItem_Click(object sender, EventArgs e)
