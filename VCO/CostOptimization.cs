@@ -20,6 +20,8 @@ namespace VCO
     {
         public List<Data> SimAndUsage { get; set; }
         private static readonly Regex ColumnNameRegex = new Regex("[A-Za-z]+");
+
+        private List<int> planList = new List<int> {10240,5120,1024,500,50,25,3};
         public CostOptimization()
         {
             InitializeComponent();
@@ -33,19 +35,15 @@ namespace VCO
 
             throw new ArgumentOutOfRangeException(cellReference);
         }
-
-       
-
+        
         public void ReadFile(string path)
         {
             Cursor.Current = Cursors.WaitCursor;
             using (var document = SpreadsheetDocument.Open(path, true))
             {
                 var sheets = document.WorkbookPart.Workbook.Descendants<Sheet>();
-
                 foreach (Sheet sheet in sheets)
                 {
-
                     WorksheetPart worksheetPart = (WorksheetPart)document.WorkbookPart.GetPartById(sheet.Id);
                     Worksheet worksheet = worksheetPart.Worksheet;
                     var rows = worksheet.GetFirstChild<SheetData>().Elements<Row>();
@@ -56,7 +54,6 @@ namespace VCO
                         if (rowCount == 1)
                         {
                             continue;
-
                         }
                         long simNum = -1;
                         double simUsage = 0;
@@ -83,7 +80,6 @@ namespace VCO
                         }
                     }
                 }
-
             }
             Cursor.Current = Cursors.Default;
             ApplyPlans();
@@ -93,22 +89,36 @@ namespace VCO
         {
             double totalPoolCommitment = 0;
             double accumulatedUsage = 0;
+            var index = -1;
+            var planIndex = 0;
             for (var i = 0; i < SimAndUsage.Count; i++)
             {
-                accumulatedUsage += SimAndUsage[i].Usage;
-                totalPoolCommitment += 10240;
-                SimAndUsage[i].Plan = 10240;
-                if (totalPoolCommitment > accumulatedUsage)
+                if (planIndex == planList.Count - 1)
                 {
-                    break;
+                    accumulatedUsage += SimAndUsage[i].Usage;
+                    totalPoolCommitment += planList[planList.Count - 1];
+                    SimAndUsage[i].Plan = planList[planList.Count - 1];
+                    SimAndUsage[i].PlanAssigned = true;
                 }
-               
+                else
+                {
+                    accumulatedUsage += SimAndUsage[i].Usage;
+                    totalPoolCommitment += planList[planIndex];
+                    SimAndUsage[i].Plan = planList[planIndex];
+                    SimAndUsage[i].PlanAssigned = true;
+                    if (totalPoolCommitment > accumulatedUsage)
+                    {
+                        planIndex++;
+                    }
+                }
+                
             }
         }
 
+
         private void fileToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            openFileDialog1.Title = "Select FIle";
+            openFileDialog1.Title = "Select File";
 
             if (openFileDialog1.ShowDialog() == System.Windows.Forms.DialogResult.OK)
             {

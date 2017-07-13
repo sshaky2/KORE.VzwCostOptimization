@@ -61,6 +61,7 @@
       <DependentUpon>CostOptimization.cs</DependentUpon>
     </Compile>
     <Compile Include="Data.cs" />
+    <Compile Include="PlanInformation.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <EmbeddedResource Include="CostOptimization.resx">
