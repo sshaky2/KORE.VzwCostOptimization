@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -13,6 +14,7 @@ using Excel = Microsoft.Office.Interop.Excel;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
+using OfficeOpenXml;
 
 namespace VCO
 {
@@ -22,6 +24,7 @@ namespace VCO
         private static readonly Regex ColumnNameRegex = new Regex("[A-Za-z]+");
 
         private List<int> planList = new List<int> {10240,5120,1024,500,250,3};
+        private List<Tuple<List<Data>, double>> planAssignments = new List<Tuple<List<Data>, double>>();
         public CostOptimization()
         {
             InitializeComponent();
@@ -82,10 +85,34 @@ namespace VCO
                 }
             }
             Cursor.Current = Cursors.Default;
-            CalculatePlans();
+            var planSubsets = FindSubsets(planList).ToList();
+            planSubsets.RemoveAt(0); //Removing empty set
+            int counter = 0;
+            foreach (var plans in planSubsets)
+            {
+                if (plans.Any())
+                {
+                    var plansDesc = plans.OrderByDescending(x => x);
+                    CalculatePlans(plansDesc.ToList());
+                }
+                counter++;
+            }
+
+            UpdateFile(path);
         }
 
-        private void CalculatePlans()
+        private void UpdateFile(string path)
+        {
+            FileInfo fileInfo = new FileInfo(path);
+            ExcelPackage p = new ExcelPackage(fileInfo);
+            ExcelWorksheet myWorksheet = p.Workbook.Worksheets["3290846DeDuped"];
+            myWorksheet.Cells[5873, 26].Value = 1000000;
+            p.Save();
+        }
+
+       
+
+        private void CalculatePlans(List<int> plans )
         {
             double poolCommitment = 0;
             double accumulatedUsage = 0;
@@ -95,21 +122,21 @@ namespace VCO
             double totalCost = 0;
             for (var i = 0; i < SimAndUsage.Count; i++)
             {
-                while(planTransition && planList[planIndex] >= SimAndUsage[i].Usage)
+                while (planTransition && planIndex < plans.Count - 1 && plans[planIndex] >= SimAndUsage[i].Usage)
                 {
                     planIndex++;
                     poolCommitment = 0;
                     accumulatedUsage = 0;
                 }
                 planTransition = false;
-                if (planIndex == planList.Count - 1)
+                if (planIndex == plans.Count - 1)
                 {
-                    AssignPlan(ref poolCommitment, ref accumulatedUsage, planList.Count - 1, ref totalCost, i);
+                    AssignPlan(ref poolCommitment, ref accumulatedUsage, plans[plans.Count - 1], ref totalCost, i);
                 }
                 else
                 {
-                    AssignPlan(ref poolCommitment, ref accumulatedUsage, planIndex, ref totalCost, i);
-                    if (poolCommitment > accumulatedUsage * PlanInformation.GetInfoBySize(planList[planIndex]).Buffer)
+                    AssignPlan(ref poolCommitment, ref accumulatedUsage, plans[planIndex], ref totalCost, i);
+                    if (poolCommitment > accumulatedUsage * PlanInformation.GetInfoBySize(plans[planIndex]).Buffer)
                     {
                         planIndex++;
                         poolCommitment = 0;
@@ -122,18 +149,20 @@ namespace VCO
             {
                 totalCost += (accumulatedUsage - poolCommitment) * PlanInformation.GetInfoBySize(3).OverageCost;
             }
+            planAssignments.Add(new Tuple<List<Data>, double> (SimAndUsage, totalCost));
         }
 
-        private void AssignPlan(ref double poolCommitment, ref double accumulatedUsage, int planIndex, ref double totalCost, int i)
+        private void AssignPlan(ref double poolCommitment, ref double accumulatedUsage, int plan, ref double totalCost, int i)
         {
             accumulatedUsage += SimAndUsage[i].Usage;
-            poolCommitment += planList[planIndex];
-            SimAndUsage[i].Plan = planList[planIndex];
-            SimAndUsage[i].Cost = PlanInformation.GetInfoBySize(planList[planIndex]).Cost;
+            poolCommitment += plan;
+            SimAndUsage[i].Plan = plan;
+            SimAndUsage[i].Cost = PlanInformation.GetInfoBySize(plan).Cost;
             SimAndUsage[i].PlanAssigned = true;
             totalCost += SimAndUsage[i].Cost;
         }
 
+        public IEnumerable<IEnumerable<T>> FindSubsets<T>(IEnumerable<T> source)
         {
             List<T> list = source.ToList();
             int length = list.Count;

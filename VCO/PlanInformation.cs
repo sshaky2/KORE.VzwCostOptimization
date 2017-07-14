@@ -32,7 +32,7 @@ namespace VCO
                     }
                 case 250:
                     {
-                        return new Plan { Size = 250, Cost = 8, OverageCost = 0.009, Buffer = 1.3 };
+                        return new Plan { Size = 250, Cost = 8, OverageCost = 0.009, Buffer = 1 };
                     }
                 case 500:
                     {
