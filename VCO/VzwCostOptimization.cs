@@ -17,7 +17,7 @@ namespace VCO
         public List<Data> SimAndUsage { get; set; }
         private static readonly Regex ColumnNameRegex = new Regex("[A-Za-z]+");
 
-        private List<int> planList = new List<int> {10240, 5120, 1024, 500, 250, 3};
+        private List<int> planList = new List<int>(); 
 
         private List<Tuple<List<Data>, double, List<int>>> planAssignments =
             new List<Tuple<List<Data>, double, List<int>>>();
@@ -70,6 +70,11 @@ namespace VCO
             var ds = new DataSet();
             ds.ReadXml(path);
             planData = ds.Tables[0];
+
+            foreach (DataRow row in planData.Rows)
+            {
+                planList.Add(Convert.ToInt32(row["Size"]));
+            }
 
         }
 
@@ -135,8 +140,13 @@ namespace VCO
             {
                 Console.WriteLine(ex.Message);
             }
-        
-            
+
+            AssignPlans(path);
+
+        }
+
+        private void AssignPlans(string path)
+        {
             Console.WriteLine("Searching for optimal plans...");
             var planSubsets = FindSubsets(planList).ToList();
             planSubsets.RemoveAt(0); //Removing empty set
@@ -157,8 +167,6 @@ namespace VCO
                 CalculatePlans(plans);
             }
 
-            //CalculatePlans(new List<int> {10240,1024,500,250,25,3});
-
             var minCost = double.MaxValue;
             var optimalPlan = new Tuple<List<Data>, double, List<int>>(new List<Data>(), 0, new List<int>());
             foreach (var plan in planAssignments)
@@ -169,10 +177,18 @@ namespace VCO
                     optimalPlan = plan;
                 }
             }
-            Console.WriteLine($"Optimal Cost: {optimalPlan.Item2}, Plans assigned: {string.Join(",",optimalPlan.Item3)}");
+            Console.WriteLine(
+                $"Optimal Cost: {optimalPlan.Item2}, Plans assigned: {string.Join(",", optimalPlan.Item3)}");
 
             Console.WriteLine("Writing optimal plan to file...");
-            UpdateFile(path, optimalPlan);
+            try
+            {
+                UpdateFile(path, optimalPlan);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
         }
 
         private void UpdateFile(string path, Tuple<List<Data>, double, List<int>> optimalPlan)
@@ -276,7 +292,7 @@ namespace VCO
                 {
                     planUsed.Add(plans[planIndex]);
                     AssignPlan(ref poolCommitment, ref accumulatedUsage, plans[planIndex], ref totalCost, i);
-                    if (poolCommitment > accumulatedUsage * Convert.ToDouble(GetRowBySize(plans[planIndex])["Buffer"])) // PlanInformation.GetInfoBySize(plans[planIndex]).Buffer)
+                    if (poolCommitment > accumulatedUsage * Convert.ToDouble(GetRowBySize(plans[planIndex])["Buffer"])) 
                     {
                         planIndex++;
                         poolCommitment = 0;

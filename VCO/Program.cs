@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using VCO.Properties;
 
 namespace VCO
 {
@@ -23,8 +24,8 @@ namespace VCO
             {
                 costOpt.CreateTable();
             }
-            
-            costOpt.ReadFile(@"C:\Users\sshakya\Documents\GitHub\VCO\3290846DeDuped.xlsx");
+
+            costOpt.ReadFile(Settings.Default.FilePath);
             Console.WriteLine("Done...");
             Console.ReadKey();
 
