@@ -1,36 +1,34 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Data;
-using System.Drawing;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using System.Windows.Forms;
-using Excel = Microsoft.Office.Interop.Excel;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
-using VCO;
 
 namespace VCO
 {
-    public partial class CostOptimization : Form
+    class VzwCostOptimization
     {
         public List<Data> SimAndUsage { get; set; }
         private static readonly Regex ColumnNameRegex = new Regex("[A-Za-z]+");
 
-        private List<int> planList = new List<int> {10240,5120,1024,500,250,3};
-        private List<Tuple<List<Data>, double, List<int>>> planAssignments = new List<Tuple<List<Data>, double, List<int>>>();
-        public CostOptimization()
+        private List<int> planList = new List<int> {10240, 5120, 1024, 500, 250, 3};
+
+        private List<Tuple<List<Data>, double, List<int>>> planAssignments =
+            new List<Tuple<List<Data>, double, List<int>>>();
+
+        DataTable planData = new DataTable();
+
+        public VzwCostOptimization()
         {
-            InitializeComponent();
             SimAndUsage = new List<Data>();
         }
-        
+
         private static string GetColumnName(string cellReference)
         {
             if (ColumnNameRegex.IsMatch(cellReference))
@@ -61,63 +59,85 @@ namespace VCO
 
             var dataSet = new DataSet();
             dataSet.Tables.Add(table);
-            dataSet.WriteXml(@"C:\Users\sshakya\Documents\GitHub\VCO\file.xml");
+            dataSet.WriteXml(Directory.GetCurrentDirectory() + "\\plan.xml");
             return table;
 
-            
+
         }
-        
+
+        public void LoadPlanInformation(string path)
+        {
+            var ds = new DataSet();
+            ds.ReadXml(path);
+            planData = ds.Tables[0];
+
+        }
+
+        public DataRow GetRowBySize(int size)
+        {
+            foreach (DataRow row in planData.Rows)
+            {
+                if (Convert.ToInt32(row["Size"]) == size)
+                {
+                    return row;
+                }
+            }
+            return null;
+        }
+
         public void ReadFile(string path)
         {
-            //CreateTable();
-            var ds = new DataSet();
-            ds.ReadXml(@"C:\Users\sshakya\Documents\GitHub\VCO\file.xml");
-            var dt = ds.Tables[0];
-            var abc = dt.Select("Size = 250")[0]["Cost"];
-
-            Cursor.Current = Cursors.WaitCursor;
-            using (var document = SpreadsheetDocument.Open(path, true))
+            Console.WriteLine("Loading data...");
+            try
             {
-                var sheets = document.WorkbookPart.Workbook.Descendants<Sheet>();
-                foreach (Sheet sheet in sheets)
+                using (var document = SpreadsheetDocument.Open(path, true))
                 {
-                    WorksheetPart worksheetPart = (WorksheetPart)document.WorkbookPart.GetPartById(sheet.Id);
-                    Worksheet worksheet = worksheetPart.Worksheet;
-                    var rows = worksheet.GetFirstChild<SheetData>().Elements<Row>();
-                    int rowCount = 0;
-                    foreach (var row in rows)
+                    var sheets = document.WorkbookPart.Workbook.Descendants<Sheet>();
+                    foreach (Sheet sheet in sheets)
                     {
-                        rowCount++;
-                        if (rowCount == 1)
+                        WorksheetPart worksheetPart = (WorksheetPart)document.WorkbookPart.GetPartById(sheet.Id);
+                        Worksheet worksheet = worksheetPart.Worksheet;
+                        var rows = worksheet.GetFirstChild<SheetData>().Elements<Row>();
+                        int rowCount = 0;
+                        foreach (var row in rows)
                         {
-                            continue;
-                        }
-                        long simNum = -1;
-                        double simUsage = 0;
-                        var cells = row.Elements<Cell>();
-                        bool insertValue = false;
-                        foreach (var cell in cells)
-                        {
-                            if (GetColumnName(cell.CellReference) == "A")
+                            rowCount++;
+                            if (rowCount == 1)
                             {
-                                var str = cell.CellValue.Text;
-                                simNum = Convert.ToInt64(cell.CellValue.Text);
-                                insertValue = true;
+                                continue;
                             }
-                            if (GetColumnName(cell.CellReference) == "M")
+                            long simNum = -1;
+                            double simUsage = 0;
+                            var cells = row.Elements<Cell>();
+                            bool insertValue = false;
+                            foreach (var cell in cells)
                             {
-                                simUsage = Convert.ToDouble(cell.CellValue.Text);
-                                insertValue = true;
+                                if (GetColumnName(cell.CellReference) == "A")
+                                {
+                                    simNum = Convert.ToInt64(cell.CellValue.Text);
+                                    insertValue = true;
+                                }
+                                if (GetColumnName(cell.CellReference) == "M")
+                                {
+                                    simUsage = Convert.ToDouble(cell.CellValue.Text);
+                                    insertValue = true;
+                                }
                             }
-                        }
-                        if (insertValue)
-                        {
-                            SimAndUsage.Add(new Data { Sim = simNum, Usage = simUsage });
+                            if (insertValue)
+                            {
+                                SimAndUsage.Add(new Data { Sim = simNum, Usage = simUsage });
+                            }
                         }
                     }
                 }
             }
-            Cursor.Current = Cursors.Default;
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+        
+            
+            Console.WriteLine("Searching for optimal plans...");
             var planSubsets = FindSubsets(planList).ToList();
             planSubsets.RemoveAt(0); //Removing empty set
             var tempList = new List<List<int>>();
@@ -128,7 +148,7 @@ namespace VCO
                 {
                     var plansDesc = plans.OrderByDescending(x => x);
                     tempList.Add(plansDesc.ToList());
-                    
+
                 }
             }
             var noDupes = tempList.Distinct();
@@ -149,12 +169,13 @@ namespace VCO
                     optimalPlan = plan;
                 }
             }
-            
+            Console.WriteLine($"Optimal Cost: {optimalPlan.Item2}, Plans assigned: {string.Join(",",optimalPlan.Item3)}");
 
-            UpdateFile(path);
+            Console.WriteLine("Writing optimal plan to file...");
+            UpdateFile(path, optimalPlan);
         }
 
-        private void UpdateFile(string path)
+        private void UpdateFile(string path, Tuple<List<Data>, double, List<int>> optimalPlan)
         {
             // Open the document for editing.
             using (SpreadsheetDocument spreadSheet = SpreadsheetDocument.Open(path, true))
@@ -162,7 +183,7 @@ namespace VCO
                 // Access the main Workbook part, which contains all references.
                 WorkbookPart workbookPart = spreadSheet.WorkbookPart;
                 // get sheet by name
-                Sheet sheet = workbookPart.Workbook.Descendants<Sheet>().Where(s => s.Name == "2973798DeDuped").FirstOrDefault();
+                Sheet sheet = workbookPart.Workbook.Descendants<Sheet>().Where(s => s.Name == "3290846DeDuped").FirstOrDefault();
 
                 // get worksheetpart by sheet id
                 WorksheetPart worksheetPart = workbookPart.GetPartById(sheet.Id.Value) as WorksheetPart;
@@ -170,11 +191,27 @@ namespace VCO
                 // The SheetData object will contain all the data.
                 //SheetData sheetData = worksheetPart.Worksheet.GetFirstChild();
 
-                Cell cell = GetCell(worksheetPart.Worksheet, "Z", 5867);
+                for (int i = 0; i < optimalPlan.Item1.Count; i++)
+                {
+                    Cell cell1 = GetCell(worksheetPart.Worksheet, "Z", (uint) i + 2);
+                    cell1.CellValue = new CellValue($"{optimalPlan.Item1[i].Plan}");
+                    cell1.DataType = new EnumValue<CellValues>(CellValues.Number);
 
-                cell.CellValue = new CellValue("10");
-                cell.DataType = new EnumValue<CellValues>(CellValues.Number);
+                    Cell cell2 = GetCell(worksheetPart.Worksheet, "Y", (uint)i + 2);
+                    cell2.CellValue = new CellValue($"{optimalPlan.Item1[i].Cost}");
+                    cell2.DataType = new EnumValue<CellValues>(CellValues.Number);
 
+                    Cell cell3 = GetCell(worksheetPart.Worksheet, "X", (uint)i + 2);
+                    if (optimalPlan.Item1[i].Plan >= 1024)
+                    {
+                        cell3.CellValue = new CellValue($"{optimalPlan.Item1[i].Plan/1024} GB");
+                    }
+                    else
+                    {
+                        cell3.CellValue = new CellValue($"{optimalPlan.Item1[i].Plan} MB");
+                    }
+                    cell3.DataType = new EnumValue<CellValues>(CellValues.String);
+                }
                 // Save the worksheet.
                 worksheetPart.Worksheet.Save();
 
@@ -190,7 +227,7 @@ namespace VCO
             Row row = GetRow(worksheet, rowIndex);
 
             if (row == null) return null;
-            
+
             var FirstRow = row.Elements<Cell>().FirstOrDefault(c => string.Compare
             (c.CellReference.Value, columnName +
             rowIndex, true) == 0);
@@ -210,9 +247,9 @@ namespace VCO
             }
             return row;
         }
-    
 
-        private void CalculatePlans(List<int> plans )
+
+        private void CalculatePlans(List<int> plans)
         {
             double poolCommitment = 0;
             double accumulatedUsage = 0;
@@ -239,7 +276,7 @@ namespace VCO
                 {
                     planUsed.Add(plans[planIndex]);
                     AssignPlan(ref poolCommitment, ref accumulatedUsage, plans[planIndex], ref totalCost, i);
-                    if (poolCommitment > accumulatedUsage * PlanInformation.GetInfoBySize(plans[planIndex]).Buffer)
+                    if (poolCommitment > accumulatedUsage * Convert.ToDouble(GetRowBySize(plans[planIndex])["Buffer"])) // PlanInformation.GetInfoBySize(plans[planIndex]).Buffer)
                     {
                         planIndex++;
                         poolCommitment = 0;
@@ -250,10 +287,11 @@ namespace VCO
             }
             if (accumulatedUsage > poolCommitment)
             {
-                totalCost += (accumulatedUsage - poolCommitment) * PlanInformation.GetInfoBySize(3).OverageCost;
+                totalCost += (accumulatedUsage - poolCommitment)*
+                             Convert.ToDouble(GetRowBySize(plans[planIndex])["OverageCost"]);
             }
             var deduped = planUsed.Distinct().ToList();
-            planAssignments.Add(new Tuple<List<Data>, double, List<int>> (SimAndUsage, totalCost, deduped));
+            planAssignments.Add(new Tuple<List<Data>, double, List<int>>(SimAndUsage, totalCost, deduped));
         }
 
         private void AssignPlan(ref double poolCommitment, ref double accumulatedUsage, int plan, ref double totalCost, int i)
@@ -261,7 +299,7 @@ namespace VCO
             accumulatedUsage += SimAndUsage[i].Usage;
             poolCommitment += plan;
             SimAndUsage[i].Plan = plan;
-            SimAndUsage[i].Cost = PlanInformation.GetInfoBySize(plan).Cost;
+            SimAndUsage[i].Cost = Convert.ToDouble(GetRowBySize(plan)["Cost"]); 
             SimAndUsage[i].PlanAssigned = true;
             totalCost += SimAndUsage[i].Cost;
         }
@@ -285,16 +323,6 @@ namespace VCO
                     rs++;
                 }
                 yield return subset;
-            }
-        }
-
-        private void fileToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            openFileDialog1.Title = "Select File";
-
-            if (openFileDialog1.ShowDialog() == System.Windows.Forms.DialogResult.OK)
-            {
-                ReadFile(openFileDialog1.FileName);
             }
         }
     }

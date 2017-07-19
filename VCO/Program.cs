@@ -1,22 +1,33 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Windows.Forms;
 
 namespace VCO
 {
-    static class Program
+    class Program
     {
         /// <summary>
         /// The main entry point for the application.
         /// </summary>
         [STAThread]
-        static void Main()
+        static void Main(string[] args)
         {
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new CostOptimization());
+            VzwCostOptimization costOpt = new VzwCostOptimization();
+            if (File.Exists(Directory.GetCurrentDirectory() + "\\plan.xml"))
+            {
+                costOpt.LoadPlanInformation(Directory.GetCurrentDirectory() + "\\plan.xml");
+            }
+            else
+            {
+                costOpt.CreateTable();
+            }
+            
+            costOpt.ReadFile(@"C:\Users\sshakya\Documents\GitHub\VCO\3290846DeDuped.xlsx");
+            Console.WriteLine("Done...");
+            Console.ReadKey();
+
         }
     }
 }
