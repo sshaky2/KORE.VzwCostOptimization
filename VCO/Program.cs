@@ -12,7 +12,6 @@ namespace VCO
         /// <summary>
         /// The main entry point for the application.
         /// </summary>
-        [STAThread]
         static void Main(string[] args)
         {
             VzwCostOptimization costOpt = new VzwCostOptimization();
@@ -26,6 +25,15 @@ namespace VCO
             }
 
             costOpt.ReadFile(Settings.Default.FilePath);
+            var optimalPlan = costOpt.SearchPlans(Settings.Default.FilePath);
+            try
+            {
+                costOpt.UpdateFile(Settings.Default.FilePath, optimalPlan);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
             Console.WriteLine("Done...");
             Console.ReadKey();
 

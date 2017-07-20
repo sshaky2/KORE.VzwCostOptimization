@@ -70,10 +70,9 @@ namespace VCO
             var ds = new DataSet();
             ds.ReadXml(path);
             planData = ds.Tables[0];
-
-            foreach (DataRow row in planData.Rows)
+            for (int i = 0; i < planData.Rows.Count; i++)
             {
-                planList.Add(Convert.ToInt32(row["Size"]));
+                planList.Add(Convert.ToInt32(planData.Rows[i]["Size"]));
             }
 
         }
@@ -117,14 +116,14 @@ namespace VCO
                             bool insertValue = false;
                             foreach (var cell in cells)
                             {
-                                if (GetColumnName(cell.CellReference) == "A")
+                                if (GetColumnName(cell.CellReference) == "A" && cell.CellValue != null)
                                 {
                                     simNum = Convert.ToInt64(cell.CellValue.Text);
                                     insertValue = true;
                                 }
-                                if (GetColumnName(cell.CellReference) == "M")
+                                if (GetColumnName(cell.CellReference) == "M" && cell.CellValue != null)
                                 {
-                                    simUsage = Convert.ToDouble(cell.CellValue.Text);
+                                    simUsage = Convert.ToDouble(cell.CellValue.Text );
                                     insertValue = true;
                                 }
                             }
@@ -141,11 +140,9 @@ namespace VCO
                 Console.WriteLine(ex.Message);
             }
 
-            AssignPlans(path);
-
         }
 
-        private void AssignPlans(string path)
+        public Tuple<List<Data>, double, List<int>> SearchPlans(string path)
         {
             Console.WriteLine("Searching for optimal plans...");
             var planSubsets = FindSubsets(planList).ToList();
@@ -162,9 +159,15 @@ namespace VCO
                 }
             }
             var noDupes = tempList.Distinct();
+            int count = 0;
             foreach (var plans in noDupes)
             {
+                if (count == 68)
+                {
+                    var t = 0;
+                }
                 CalculatePlans(plans);
+                count++;
             }
 
             var minCost = double.MaxValue;
@@ -181,17 +184,75 @@ namespace VCO
                 $"Optimal Cost: {optimalPlan.Item2}, Plans assigned: {string.Join(",", optimalPlan.Item3)}");
 
             Console.WriteLine("Writing optimal plan to file...");
-            try
-            {
-                UpdateFile(path, optimalPlan);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-            }
+            
+            return optimalPlan;
         }
 
-        private void UpdateFile(string path, Tuple<List<Data>, double, List<int>> optimalPlan)
+        private void CalculatePlans(List<int> plans)
+        {
+            double poolCommitment = 0;
+            double accumulatedUsage = 0;
+            var index = -1;
+            var planIndex = 0;
+            bool planTransition = false;
+            double totalCost = 0;
+            var planUsed = new List<int>();
+
+            var simAndUsageData = new List<Data>();
+            for (int i = 0; i < SimAndUsage.Count; i++)
+            {
+                simAndUsageData.Add(new Data());
+            }
+
+            for (var i = 0; i < SimAndUsage.Count; i++)
+            {
+                while (planTransition && planIndex < plans.Count - 1 && plans[planIndex] >= SimAndUsage[i].Usage)
+                {
+                    planIndex++;
+                    poolCommitment = 0;
+                    accumulatedUsage = 0;
+                }
+                planTransition = false;
+                if (planIndex == plans.Count - 1)
+                {
+                    planUsed.Add(plans[plans.Count - 1]);
+                    accumulatedUsage += SimAndUsage[i].Usage;
+                    poolCommitment += plans[plans.Count - 1];
+                    simAndUsageData[i].Plan = plans[plans.Count - 1];
+                    simAndUsageData[i].Cost = Convert.ToDouble(GetRowBySize(plans[plans.Count - 1])["Cost"]);
+                    simAndUsageData[i].PlanAssigned = true;
+                    totalCost += simAndUsageData[i].Cost;
+                }
+                else
+                {
+                    planUsed.Add(plans[planIndex]);
+                    accumulatedUsage += SimAndUsage[i].Usage;
+                    poolCommitment += plans[planIndex];
+                    simAndUsageData[i].Plan = plans[planIndex];
+                    simAndUsageData[i].Cost = Convert.ToDouble(GetRowBySize(plans[planIndex])["Cost"]);
+                    simAndUsageData[i].PlanAssigned = true;
+                    totalCost += simAndUsageData[i].Cost;
+                    if (poolCommitment > accumulatedUsage * Convert.ToDouble(GetRowBySize(plans[planIndex])["Buffer"]))
+                    {
+                        planIndex++;
+                        poolCommitment = 0;
+                        accumulatedUsage = 0;
+                        planTransition = true;
+                    }
+                }
+            }
+            if (accumulatedUsage > poolCommitment)
+            {
+                totalCost += (accumulatedUsage - poolCommitment) *
+                             Convert.ToDouble(GetRowBySize(plans[planIndex])["OverageCost"]);
+            }
+            var deduped = planUsed.Distinct().ToList();
+            
+            planAssignments.Add(new Tuple<List<Data>, double, List<int>>(simAndUsageData.ToList(), totalCost, deduped));
+        }
+        
+
+        public void UpdateFile(string path, Tuple<List<Data>, double, List<int>> optimalPlan)
         {
             // Open the document for editing.
             using (SpreadsheetDocument spreadSheet = SpreadsheetDocument.Open(path, true))
@@ -199,7 +260,8 @@ namespace VCO
                 // Access the main Workbook part, which contains all references.
                 WorkbookPart workbookPart = spreadSheet.WorkbookPart;
                 // get sheet by name
-                Sheet sheet = workbookPart.Workbook.Descendants<Sheet>().Where(s => s.Name == "3290846DeDuped").FirstOrDefault();
+                //Sheet sheet = workbookPart.Workbook.Descendants<Sheet>().Where(s => s.Name == "2973798DeDuped").FirstOrDefault();
+                Sheet sheet = workbookPart.Workbook.Descendants<Sheet>().ToList()[0];
 
                 // get worksheetpart by sheet id
                 WorksheetPart worksheetPart = workbookPart.GetPartById(sheet.Id.Value) as WorksheetPart;
@@ -209,6 +271,7 @@ namespace VCO
 
                 for (int i = 0; i < optimalPlan.Item1.Count; i++)
                 {
+                    Console.Write("\rWriting line {0}  ", i);
                     Cell cell1 = GetCell(worksheetPart.Worksheet, "Z", (uint) i + 2);
                     cell1.CellValue = new CellValue($"{optimalPlan.Item1[i].Plan}");
                     cell1.DataType = new EnumValue<CellValues>(CellValues.Number);
@@ -263,63 +326,7 @@ namespace VCO
             }
             return row;
         }
-
-
-        private void CalculatePlans(List<int> plans)
-        {
-            double poolCommitment = 0;
-            double accumulatedUsage = 0;
-            var index = -1;
-            var planIndex = 0;
-            bool planTransition = false;
-            double totalCost = 0;
-            var planUsed = new List<int>();
-            for (var i = 0; i < SimAndUsage.Count; i++)
-            {
-                while (planTransition && planIndex < plans.Count - 1 && plans[planIndex] >= SimAndUsage[i].Usage)
-                {
-                    planIndex++;
-                    poolCommitment = 0;
-                    accumulatedUsage = 0;
-                }
-                planTransition = false;
-                if (planIndex == plans.Count - 1)
-                {
-                    planUsed.Add(plans[plans.Count - 1]);
-                    AssignPlan(ref poolCommitment, ref accumulatedUsage, plans[plans.Count - 1], ref totalCost, i);
-                }
-                else
-                {
-                    planUsed.Add(plans[planIndex]);
-                    AssignPlan(ref poolCommitment, ref accumulatedUsage, plans[planIndex], ref totalCost, i);
-                    if (poolCommitment > accumulatedUsage * Convert.ToDouble(GetRowBySize(plans[planIndex])["Buffer"])) 
-                    {
-                        planIndex++;
-                        poolCommitment = 0;
-                        accumulatedUsage = 0;
-                        planTransition = true;
-                    }
-                }
-            }
-            if (accumulatedUsage > poolCommitment)
-            {
-                totalCost += (accumulatedUsage - poolCommitment)*
-                             Convert.ToDouble(GetRowBySize(plans[planIndex])["OverageCost"]);
-            }
-            var deduped = planUsed.Distinct().ToList();
-            planAssignments.Add(new Tuple<List<Data>, double, List<int>>(SimAndUsage, totalCost, deduped));
-        }
-
-        private void AssignPlan(ref double poolCommitment, ref double accumulatedUsage, int plan, ref double totalCost, int i)
-        {
-            accumulatedUsage += SimAndUsage[i].Usage;
-            poolCommitment += plan;
-            SimAndUsage[i].Plan = plan;
-            SimAndUsage[i].Cost = Convert.ToDouble(GetRowBySize(plan)["Cost"]); 
-            SimAndUsage[i].PlanAssigned = true;
-            totalCost += SimAndUsage[i].Cost;
-        }
-
+        
         public IEnumerable<IEnumerable<T>> FindSubsets<T>(IEnumerable<T> source)
         {
             List<T> list = source.ToList();
